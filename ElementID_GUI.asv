@@ -446,15 +446,11 @@ for chI = 1:5
     end
     
 end
-comActInds = neighINDS(comINDS);
 % 8. 
 keepNeiBmask = false(size(neighBlobs));
-for kni = 1:sum(comINDS)
-    keepNeiBmask(neighBlobs == comActInds(kni)) = true;
-end
+for kni = 1
 
-newBlobMask = currentBlob;
-newBlobMask(keepNeiBmask) = true;
+newBlobMask = 
 
 % 9.
 
