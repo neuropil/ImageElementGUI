@@ -421,8 +421,13 @@ function acpEle_Callback(hObject, eventdata, handles)
 % 6. Get total number of blobs
 % 7. Determine which neighbors were selected
 % 8. Combine those masks into a new mask 
-% 9. Overwite current blob index with new blob and centroid info
+% 9. Update the following:
+    % a. Current Blob info
+    % b. Current Blob count
+    % c. Total Blob info
+    % d. Total Blob count
 % 10. FIX blob total count
+% 11. Update Handles
 
 % 1. 
 currentEl = handles.eleCur;
@@ -460,7 +465,20 @@ newBlobMask(keepNeiBmask) = true;
 
 
 % 10.
-
+for bui = 1:length(comActInds)
+   
+    tmpVal = comActInds(bui);
+    
+    if tmpVal < currentEl
+        currentEl = currentEl - 1;
+        totalElnum = totalElnum - 1;
+    elseif tmpVal > currentEl
+       
+        totalElnum = totalElnum - 1;
+        
+    end
+    
+end
 
 
 
