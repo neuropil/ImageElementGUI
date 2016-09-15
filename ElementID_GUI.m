@@ -73,6 +73,10 @@ for i = 1:5
     set(handles.(['rb',num2str(i)]),'Enable','off');
 end
 
+set(handles.makeMask,'Enable','off');
+set(handles.idBlobs,'Enable','off');
+
+
 handles.curCen = nan;
 
 
@@ -131,6 +135,10 @@ set(handles.updateT,'ForegroundColor','r');
 axes(handles.imAGE);
 
 imshow(handles.bwImageFields)
+
+
+set(handles.makeMask,'Enable','on');
+set(handles.load_im,'Enable','off');
 
 % Update handles structure
 guidata(hObject, handles);
@@ -225,6 +233,14 @@ set(handles.updateT,'ForegroundColor','r');
 
 
 
+% Update buttons
+
+set(handles.makeMask,'Enable','off');
+set(handles.load_im,'Enable','off');
+set(handles.idBlobs,'Enable','on');
+
+
+
 % Update handles structure
 guidata(hObject, handles);
 
@@ -244,6 +260,13 @@ cla(handles.imAGE)
 for i = 1:6
     set(handles.(['rb',num2str(i)]),'Enable','on');
 end
+
+
+set(handles.makeMask,'Enable','off');
+set(handles.load_im,'Enable','off');
+set(handles.idBlobs,'Enable','off');
+
+
 
 % Update handles structure
 guidata(hObject, handles);
@@ -310,123 +333,130 @@ function [handles] = next_file(handles)
 % Clear the current axes
 cla(handles.imAGE)
 
-% ALL labels - Mask based on dimensions of pixel box with INTEGER IDs
-% 1) All Labels
-curAllLabs = handles.allLabels;
-curAllcens = handles.allCentroids;
-% 1) Binary matrix 
-curLabel = false(size(handles.allLabels));
-% 2) Check for current element in current labels
-if sum(sum(handles.allLabels == handles.eleCur)) == 0
-    handles.eleCur = handles.eleCur + 1;
-    
-    [handles] = next_file(handles);
-end
-
-% 3) Binary matrix with TRUE for current element
-curLabel(handles.allLabels == handles.eleCur) = 1;
-% 4) 
-tmpBox = handles.ImageBox;
-tmpBox(~curLabel) = 0;
-
-[sizeCheck,~,~,~] = bwboundaries(tmpBox,'noholes');
-
-if size(sizeCheck{1,1},1) < 9;
-   
-    % Remove element centroid 
-    rmIND = false(length(curAllcens),2);
-    rmIND(handles.eleCur,:) = true;
-    newAllcens = curAllcens;
-    newAllcens(rmIND) = nan;
-    handles.allCentroids = newAllcens;
-    % Remove element centroid and blob
-    curAllLabs(curAllLabs == handles.eleCur) = 0;
-    handles.allLabels = curAllLabs;
-    
-    handles.eleCur = handles.eleCur + 1;
-    
-    [handles] = next_file(handles);
-
-end
-
-handles.elemData{handles.eleCur,1} = curLabel;
-handles.elemData{handles.eleCur,2} = tmpBox;
-
-if isnan(handles.curCen)
-    
-    centrO = regionprops(curLabel,'centroid');
-    centroi = round(centrO.Centroid);
-    centrOii = centrO.Centroid;
-    
+if handles.eleCur > max(unique(handles.allLabels))
+    return
 else
     
-    centroi = handles.curCen;
-    centrOii = handles.curCen;
+    
+    % ALL labels - Mask based on dimensions of pixel box with INTEGER IDs
+    % 1) All Labels
+    curAllLabs = handles.allLabels;
+    curAllcens = handles.allCentroids;
+    % 1) Binary matrix
+    curLabel = false(size(handles.allLabels));
+    % 2) Check for current element in current labels
+    if sum(sum(handles.allLabels == handles.eleCur)) == 0
+        handles.eleCur = handles.eleCur + 1;
+        
+        [handles] = next_file(handles);
+    end
+    
+    % 3) Binary matrix with TRUE for current element
+    curLabel(handles.allLabels == handles.eleCur) = 1;
+    % 4)
+    tmpBox = handles.ImageBox;
+    tmpBox(~curLabel) = 0;
+    
+    [sizeCheck,~,~,~] = bwboundaries(tmpBox,'noholes');
+    
+    if size(sizeCheck{1,1},1) < 9;
+        
+        % Remove element centroid
+        rmIND = false(length(curAllcens),2);
+        rmIND(handles.eleCur,:) = true;
+        newAllcens = curAllcens;
+        newAllcens(rmIND) = nan;
+        handles.allCentroids = newAllcens;
+        % Remove element centroid and blob
+        curAllLabs(curAllLabs == handles.eleCur) = 0;
+        handles.allLabels = curAllLabs;
+        
+        handles.eleCur = handles.eleCur + 1;
+        
+        [handles] = next_file(handles);
+        
+    end
+    
+    handles.elemData{handles.eleCur,1} = curLabel;
+    handles.elemData{handles.eleCur,2} = tmpBox;
+    
+    if isnan(handles.curCen)
+        
+        centrO = regionprops(curLabel,'centroid');
+        centroi = round(centrO.Centroid);
+        centrOii = centrO.Centroid;
+        
+    else
+        
+        centroi = handles.curCen;
+        centrOii = handles.curCen;
+        
+    end
+    
+    exhaustMDL = ExhaustiveSearcher(curAllcens);
+    neighINDS = knnsearch(exhaustMDL,centrOii,'K',6);
+    
+    neighINDSuse = neighINDS(~ismember(neighINDS,handles.eleCur));
+    handles.neighElInds = neighINDSuse;
+    
+    % Create mask for neighbors
+    curAllLabel = false(size(handles.allLabels));
+    neighBlobs = zeros(size(handles.allLabels));
+    neighCens = false(size(handles.allLabels));
+    % tmpNeighLabs = [11:11:55];
+    for ni = 1:numel(neighINDSuse)
+        
+        tmpLabMask = curAllLabs == neighINDSuse(ni);
+        curAllLabel(tmpLabMask) = true;
+        neighBlobs(tmpLabMask) = neighINDSuse(ni);
+        neighCens(tmpLabMask) = true;
+        
+    end
+    
+    handles.neighBlobs = neighBlobs;
+    
+    handles.tmpCen = centroi;
+    
+    centroids = centroi;
+    
+    [ xStrt , xEnd , yStrt , yEnd ] = viewBoxDims( centroids );
+    
+    I2 = handles.ImageBox(yStrt:yEnd,xStrt:xEnd);
+    I3 = tmpBox(yStrt:yEnd,xStrt:xEnd);
+    I4 = curAllLabel(yStrt:yEnd,xStrt:xEnd);
+    
+    handles.I2 = I2;
+    handles.I3 = I3;
+    handles.I4 = I4;
+    handles.tmpBox = tmpBox;
+    
+    [B3,~,~,~] = bwboundaries(I3,'noholes');
+    handles.B3 = B3;
+    
+    [B4,~,~,~] = bwboundaries(I4,'noholes');
+    handles.B4 = B4;
+    
+    axes(handles.imAGE);
+    imshow(handles.I2);
+    hold on;
+    for ci = 1:length(B3)
+        
+        plot(handles.B3{ci,1}(:,2), handles.B3{ci,1}(:,1), 'r','LineWidth',0.05);
+        
+    end
+    for pi = 1:length(B4)
+        
+        plot(handles.B4{pi,1}(:,2), handles.B4{pi,1}(:,1), 'g','LineWidth',0.05);
+        text(min(handles.B4{pi,1}(:,2)),max(handles.B4{pi,1}(:,1)),num2str(pi),...
+            'Color','m',...
+            'FontWeight','Bold',...
+            'FontSize',14,'VerticalAlignment','top')
+        
+    end
+    
+    set(handles.actComb,'Enable','on');
     
 end
-
-exhaustMDL = ExhaustiveSearcher(curAllcens);
-neighINDS = knnsearch(exhaustMDL,centrOii,'K',6);
-
-neighINDSuse = neighINDS(~ismember(neighINDS,handles.eleCur));
-handles.neighElInds = neighINDSuse;
-
-% Create mask for neighbors
-curAllLabel = false(size(handles.allLabels));
-neighBlobs = zeros(size(handles.allLabels));
-neighCens = false(size(handles.allLabels));
-% tmpNeighLabs = [11:11:55];
-for ni = 1:numel(neighINDSuse)
-   
-    tmpLabMask = curAllLabs == neighINDSuse(ni);
-    curAllLabel(tmpLabMask) = true;
-    neighBlobs(tmpLabMask) = neighINDSuse(ni);
-    neighCens(tmpLabMask) = true;
-    
-end
-
-handles.neighBlobs = neighBlobs;
-
-handles.tmpCen = centroi;
-
-centroids = centroi;
-
-[ xStrt , xEnd , yStrt , yEnd ] = viewBoxDims( centroids );
-
-I2 = handles.ImageBox(yStrt:yEnd,xStrt:xEnd);
-I3 = tmpBox(yStrt:yEnd,xStrt:xEnd);
-I4 = curAllLabel(yStrt:yEnd,xStrt:xEnd);
-
-handles.I2 = I2;
-handles.I3 = I3;
-handles.I4 = I4;
-handles.tmpBox = tmpBox;
-
-[B3,~,~,~] = bwboundaries(I3,'noholes');
-handles.B3 = B3;
-
-[B4,~,~,~] = bwboundaries(I4,'noholes');
-handles.B4 = B4;
-    
-axes(handles.imAGE);
-imshow(handles.I2);
-hold on;
-for ci = 1:length(B3)
-
-    plot(handles.B3{ci,1}(:,2), handles.B3{ci,1}(:,1), 'r','LineWidth',0.05);
-    
-end
-for pi = 1:length(B4)
-    
-    plot(handles.B4{pi,1}(:,2), handles.B4{pi,1}(:,1), 'g','LineWidth',0.05);
-    text(min(handles.B4{pi,1}(:,2)),max(handles.B4{pi,1}(:,1)),num2str(pi),...
-        'Color','g',...
-        'FontWeight','Bold',...
-        'FontSize',14,'VerticalAlignment','top')
-    
-end
-
-set(handles.actComb,'Enable','on');
     
     
     
