@@ -373,13 +373,15 @@ handles.neighElInds = neighINDSuse;
 
 % Create mask for neighbors
 curAllLabel = false(size(handles.allLabels));
-neighBlobs = false(size(handles.allLabels));
+neighBlobs = zeros(size(handles.allLabels));
+neighCens = false(size(handles.allLabels));
 % tmpNeighLabs = [11:11:55];
 for ni = 1:numel(neighINDSuse)
    
     tmpLabMask = curAllLabs == neighINDSuse(ni);
     curAllLabel(tmpLabMask) = true;
     neighBlobs(tmpLabMask) = neighINDSuse(ni);
+    neighCens(tmpLabMask) = true;
     
 end
 
@@ -387,25 +389,9 @@ handles.neighBlobs = neighBlobs;
 
 handles.tmpCen = centroi;
 
-if centroi(1) < 150;
-    xStrt = 1;
-else
-    xStrt = round(centroi(1)) - 150;
-    if xStrt == 0
-        xStrt = 1;
-    end
-end
-xEnd = round(centroi(1)) + 150;
+centroids = centroi;
 
-if centroi(2) < 150;
-    yStrt = 1;
-else
-    yStrt = round(centroi(2)) - 150;
-    if yStrt == 0
-        yStrt = 1;
-    end
-end
-yEnd = round(centroi(2)) + 150;
+[ xStrt , xEnd , yStrt , yEnd ] = viewBoxDims( centroids );
 
 I2 = handles.ImageBox(yStrt:yEnd,xStrt:xEnd);
 I3 = tmpBox(yStrt:yEnd,xStrt:xEnd);
@@ -425,10 +411,18 @@ handles.B4 = B4;
 axes(handles.imAGE);
 imshow(handles.I2);
 hold on;
-plot(handles.B3{1,1}(:,2), handles.B3{1,1}(:,1), 'r','LineWidth',0.05);
+for ci = 1:length(B3)
+
+    plot(handles.B3{ci,1}(:,2), handles.B3{ci,1}(:,1), 'r','LineWidth',0.05);
+    
+end
 for pi = 1:length(B4)
     
     plot(handles.B4{pi,1}(:,2), handles.B4{pi,1}(:,1), 'g','LineWidth',0.05);
+    text(min(handles.B4{pi,1}(:,2)),max(handles.B4{pi,1}(:,1)),num2str(pi),...
+        'Color','g',...
+        'FontWeight','Bold',...
+        'FontSize',14,'VerticalAlignment','top')
     
 end
 
