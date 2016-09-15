@@ -44,6 +44,11 @@ end
 % End initialization code - DO NOT EDIT
 
 
+%%%% TO DO
+% 1. Map numbers to Neighbor elements
+% 2. Make Neighbor selection function separate from Next File function
+
+
 % --- Executes just before ElementID_GUI is made visible.
 function ElementID_GUI_OpeningFcn(hObject, eventdata, handles, varargin)
 % This function has no output args, see OutputFcn.
@@ -68,6 +73,7 @@ for i = 1:5
     set(handles.(['rb',num2str(i)]),'Enable','off');
 end
 
+handles.curCen = nan;
 
 
 
@@ -105,7 +111,7 @@ function load_im_Callback(hObject, eventdata, handles)
 set(handles.updateT,'String','Working...');
 set(handles.updateT,'ForegroundColor','b');
 drawnow;
-cd('E:\Dropbox\Bietzel_Matlab')
+cd('E:\Dropbox\Bietzel_Matlab\DATA')
 testIm = imread('141221_3_aavtoRN_terms in dentate_5 - Position 0 [600].Project Maximum Z Montage_XY1431635444_Z0_T0_C0.tiff');
 normIM = double(testIm)/double(max(max(testIm)));
 normIM2 = normIM;
@@ -181,7 +187,23 @@ handles.ImageBox = normBox;
 [allBlobs,~,~,~] = bwboundaries(roIbox,'noholes');
 allLabels = bwlabel(roIbox);
 
-handles.allBlobs = allBlobs;
+% Remove small stuff
+sizeBlobs = cellfun(@(x) size(x,1), allBlobs);
+smallActInd = find(sizeBlobs <= 9);
+smallInd = sizeBlobs <= 9;
+nallBlobs = allBlobs(~smallInd);
+
+for bi = 1:length(smallActInd);
+   
+    tmpLabs = false(size(allLabels));
+    tmpLabs(allLabels == smallActInd(bi)) = 1;
+    allLabels(tmpLabs) = 0;
+    
+end
+
+
+
+handles.allBlobs = nallBlobs;
 handles.allLabels = allLabels;
 
 tmpCenAll = regionprops(handles.allLabels,'centroid');
@@ -283,22 +305,6 @@ function [handles] = next_file(handles)
 % 3. Populate with all 0
 % 4. Activate button to complete
 % 5. When complete OVERWRITE FOLLOWING PARAMETERS
-% handles.allBlobs = allBlobs;
-% handles.allLabels = allLabels;
-% 
-% tmpCenAll = regionprops(handles.allLabels,'centroid');
-% 
-% % 2) Extract info from struct
-% allCentroids = zeros(length(tmpCenAll),2);
-% for ci = 1:length(tmpCenAll)
-%     allCentroids(ci,:) = tmpCenAll(ci).Centroid;
-% end
-% 
-% handles.allCentroids = allCentroids;
-% 
-% handles.eleCur = 1;
-% handles.totalEle = length(handles.allBlobs);
-% handles.elemData = cell(length(handles.allBlobs),4);
 
 
 % Clear the current axes
@@ -310,17 +316,54 @@ curAllLabs = handles.allLabels;
 curAllcens = handles.allCentroids;
 % 1) Binary matrix 
 curLabel = false(size(handles.allLabels));
-% 2) Binary matrix with TRUE for current element
+% 2) Check for current element in current labels
+if sum(sum(handles.allLabels == handles.eleCur)) == 0
+    handles.eleCur = handles.eleCur + 1;
+    
+    [handles] = next_file(handles);
+end
+
+% 3) Binary matrix with TRUE for current element
 curLabel(handles.allLabels == handles.eleCur) = 1;
-% 3) 
+% 4) 
 tmpBox = handles.ImageBox;
 tmpBox(~curLabel) = 0;
+
+[sizeCheck,~,~,~] = bwboundaries(tmpBox,'noholes');
+
+if size(sizeCheck{1,1},1) < 9;
+   
+    % Remove element centroid 
+    rmIND = false(length(curAllcens),2);
+    rmIND(handles.eleCur,:) = true;
+    newAllcens = curAllcens;
+    newAllcens(rmIND) = nan;
+    handles.allCentroids = newAllcens;
+    % Remove element centroid and blob
+    curAllLabs(curAllLabs == handles.eleCur) = 0;
+    handles.allLabels = curAllLabs;
+    
+    handles.eleCur = handles.eleCur + 1;
+    
+    [handles] = next_file(handles);
+
+end
 
 handles.elemData{handles.eleCur,1} = curLabel;
 handles.elemData{handles.eleCur,2} = tmpBox;
 
-centrO = regionprops(curLabel,'centroid');
-centroi = round(centrO.Centroid);
+if isnan(handles.curCen)
+    
+    centrO = regionprops(curLabel,'centroid');
+    centroi = round(centrO.Centroid);
+    centrOii = centrO.Centroid;
+    
+else
+    
+    centroi = handles.curCen;
+    centrOii = handles.curCen;
+    
+end
 
 exhaustMDL = ExhaustiveSearcher(curAllcens);
 neighINDS = knnsearch(exhaustMDL,centrOii,'K',6);
@@ -341,6 +384,8 @@ for ni = 1:numel(neighINDSuse)
 end
 
 handles.neighBlobs = neighBlobs;
+
+handles.tmpCen = centroi;
 
 if centroi(1) < 150;
     xStrt = 1;
@@ -440,13 +485,13 @@ neighBlobs = handles.neighBlobs;
 % 5. 
 curAllLabs = handles.allLabels;
 % 6. 
-totalElnum = handles.totalEle;
+% totalElnum = handles.totalEle;
 % 7.
 comINDS = false(1,5);
 for chI = 1:5
     
-    tmpChk = get(handles.(['ele',num2str(chI)]),'Value');
-    if tmpChk
+    tmpChk = get(handles.(['ele',num2str(chI)]),'String');
+    if str2double(tmpChk)
         comINDS(chI) = true;
     end
     
@@ -462,28 +507,30 @@ newBlobMask = currentBlob;
 newBlobMask(keepNeiBmask) = true;
 
 % 9.
-
+%%%%%%%%%%%%%%%%%%%%%%% CHECK
 
 % 10.
-for bui = 1:length(comActInds)
-   
-    tmpVal = comActInds(bui);
-    
-    if tmpVal < currentEl
-        currentEl = currentEl - 1;
-        totalElnum = totalElnum - 1;
-    elseif tmpVal > currentEl
-       
-        totalElnum = totalElnum - 1;
-        
-    end
-    
-end
+% a. Update CURRENT element blob mask
+handles.elemData{currentEl,1} = newBlobMask;
+% b. Update ALL element blobs
+%    1. Overwwrite current blob
+curAllLabs(curAllLabs == currentEl) = 0;
+curAllLabs(newBlobMask) = currentEl;
 
+curAllcens = handles.allCentroids;
+curAllcens(comActInds,:) = nan;
+handles.allCentroids = curAllcens;
 
+%    3. Remove merged blobs
+% keepBlobsInd = true(length(curAllLabs));
+% keepBlobsInd(comActInds) = false;
+% newAllBlobs = curAllLabs(keepBlobsInd);
+handles.allLabels = curAllLabs;
 
+handles.curCen = handles.tmpCen;
 
-
+% Reinitiate Next file
+[handles] = next_file(handles);
 
 set(handles.actComb,'Enable','off');
 set(handles.comEle,'Visible','off');
