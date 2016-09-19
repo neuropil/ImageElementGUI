@@ -22,7 +22,7 @@ function varargout = ElementID_GUI(varargin)
 
 % Edit the above text to modify the response to help ElementID_GUI
 
-% Last Modified by GUIDE v2.5 14-Sep-2016 11:15:16
+% Last Modified by GUIDE v2.5 19-Sep-2016 16:17:01
 
 % Begin initialization code - DO NOT EDIT
 gui_Singleton = 1;
@@ -73,6 +73,7 @@ for i = 1:5
     set(handles.(['rb',num2str(i)]),'Enable','off');
 end
 
+set(handles.load_im,'Enable','off');
 set(handles.makeMask,'Enable','off');
 set(handles.idBlobs,'Enable','off');
 
@@ -120,7 +121,7 @@ testIm = imread('141221_3_aavtoRN_terms in dentate_5 - Position 0 [600].Project 
 normIM = double(testIm)/double(max(max(testIm)));
 normIM2 = normIM;
 normIM2(normIM2 <= 0.28) = 0;
-BW = im2bw(normIM2,0.28);
+BW = imbinarize(normIM2,0.28);
 bwImRfids = bwareaopen(BW,9);
 normMaskIm = normIM2;
 normMaskIm(~bwImRfids) = 0;
@@ -138,6 +139,7 @@ imshow(handles.bwImageFields)
 
 
 set(handles.makeMask,'Enable','on');
+set(handles.saveExp,'Enable','off');
 set(handles.load_im,'Enable','off');
 
 % Update handles structure
@@ -159,6 +161,17 @@ function makeMask_Callback(hObject, eventdata, handles) %#ok<*INUSL>
 % hObject    handle to makeMask (see GCBO)
 % eventdata  reserved - to be defined in a future version of MATLAB
 % handles    structure with handles and user data (see GUIDATA)
+
+% ASK user to input MASK location
+prompt = {'Enter NAME of POLYGON location'};
+name = 'ROI Anatomy';
+defaultans = {'Red Nucleus'};
+options.Interpreter = 'tex';
+answer = inputdlg(prompt,name,[1 40],defaultans,options);
+
+% Save name of MASK for dataOUT
+handles.dataOUT.polyName = string(answer);
+
 
 set(handles.updateT,'String','Draw Polygon...');
 set(handles.updateT,'ForegroundColor','b');
@@ -201,7 +214,7 @@ smallActInd = find(sizeBlobs <= 9);
 smallInd = sizeBlobs <= 9;
 nallBlobs = allBlobs(~smallInd);
 
-for bi = 1:length(smallActInd);
+for bi = 1:length(smallActInd)
    
     tmpLabs = false(size(allLabels));
     tmpLabs(allLabels == smallActInd(bi)) = 1;
@@ -310,6 +323,18 @@ for i = 1:6
     set(handles.(['rb',num2str(i)]),'Value',0);
 end
 
+
+% Aggregate Data to save
+handles.dataOUT.elemData = handles.elemData;
+handles.dataOUT.elemMasks = handles.allBlobs;
+handles.dataOUT.numericIDs = handles.allLabels; %#ok<*STRNU>
+
+
+% Save temp data
+cd(handles.SaveLoc)
+save(handles.dataFname, 'handles.dataOUT'); 
+
+% Advance to next element
 [handles] = next_file(handles);
 
 % Update handles structure
@@ -359,7 +384,7 @@ else
     
     [sizeCheck,~,~,~] = bwboundaries(tmpBox,'noholes');
     
-    if size(sizeCheck{1,1},1) < 9;
+    if size(sizeCheck{1,1},1) < 9
         
         % Remove element centroid
         rmIND = false(length(curAllcens),2);
@@ -473,6 +498,9 @@ function actComb_Callback(hObject, eventdata, handles)
 set(handles.comEle,'Visible','on');
 set(handles.acpEle,'Enable','on');
 
+% Update handles structure
+guidata(hObject, handles);
+
 
 
 % --- Executes on button press in acpEle.
@@ -559,6 +587,57 @@ handles.curCen = handles.tmpCen;
 set(handles.actComb,'Enable','off');
 set(handles.comEle,'Visible','off');
 set(handles.acpEle,'Enable','off');
+
+
+
+% --------------------------------------------------------------------
+function saveExp_Callback(hObject, eventdata, handles)
+% hObject    handle to saveExp (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+
+
+% Create generic Name based on date and time
+
+curFname = 'O' + replace(string(datestr(now)),{'-',':',' '},'') + '_eleData.mat';
+
+% Get user save location
+
+[~,saveLOC,~] = uiputfile(char(curFname));
+
+
+% Save empty mat file to that location
+cd(saveLOC);
+save(char(curFname));
+
+handles.SaveLoc = saveLOC;
+handles.dataFname = char(curFname);
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+set(handles.load_im,'Enable','on');
+
+% Update handles structure
+guidata(hObject, handles);
+
+
+
+
+
+
+
+
 
 
 
@@ -668,6 +747,5 @@ function ele5_CreateFcn(hObject, eventdata, handles)
 if ispc && isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgroundColor'))
     set(hObject,'BackgroundColor','white');
 end
-
 
 
