@@ -22,7 +22,7 @@ function varargout = ElementID_GUI(varargin)
 
 % Edit the above text to modify the response to help ElementID_GUI
 
-% Last Modified by GUIDE v2.5 19-Sep-2016 16:17:01
+% Last Modified by GUIDE v2.5 21-Sep-2016 11:41:42
 
 % Begin initialization code - DO NOT EDIT
 gui_Singleton = 1;
@@ -116,7 +116,8 @@ function load_im_Callback(hObject, eventdata, handles)
 set(handles.updateT,'String','Working...');
 set(handles.updateT,'ForegroundColor','b');
 drawnow;
-cd('E:\Dropbox\Bietzel_Matlab\DATA')
+[~ , dataLOC] = uigetfile('*.tiff','Select this FILE: 141221_3_aavtoRN_terms...');
+cd(dataLOC)
 testIm = imread('141221_3_aavtoRN_terms in dentate_5 - Position 0 [600].Project Maximum Z Montage_XY1431635444_Z0_T0_C0.tiff');
 normIM = double(testIm)/double(max(max(testIm)));
 normIM2 = normIM;
@@ -244,7 +245,10 @@ handles.elemData = cell(length(handles.allBlobs),4);
 set(handles.updateT,'String','Blobs Done...!');
 set(handles.updateT,'ForegroundColor','r');
 
-
+dataOUTp.polygon = handles.polygonMask;
+dataOUTp.polyName = handles.dataOUT.polyName;
+cd(handles.SaveLoc);
+save(handles.dataFname,'-append','dataOUTp');
 
 % Update buttons
 
@@ -325,14 +329,15 @@ end
 
 
 % Aggregate Data to save
-handles.dataOUT.elemData = handles.elemData;
-handles.dataOUT.elemMasks = handles.allBlobs;
-handles.dataOUT.numericIDs = handles.allLabels; %#ok<*STRNU>
+dataOUT.elemData = handles.elemData;
+dataOUT.elemMasks = handles.allBlobs;
+dataOUT.numericIDs = handles.allLabels; %#ok<*STRNU>
+curElement = handles.eleCur; %#ok<NASGU>
 
-
+handles.dataOUT = dataOUT;
 % Save temp data
 cd(handles.SaveLoc)
-save(handles.dataFname, 'handles.dataOUT'); 
+save(handles.dataFname, '-append','dataOUT','curElement'); 
 
 % Advance to next element
 [handles] = next_file(handles);
@@ -604,11 +609,11 @@ curFname = 'O' + replace(string(datestr(now)),{'-',':',' '},'') + '_eleData.mat'
 % Get user save location
 
 [~,saveLOC,~] = uiputfile(char(curFname));
-
+dataOUTn.saveLOC = saveLOC;
 
 % Save empty mat file to that location
 cd(saveLOC);
-save(char(curFname));
+save(char(curFname),'dataOUTn');
 
 handles.SaveLoc = saveLOC;
 handles.dataFname = char(curFname);
@@ -624,9 +629,9 @@ handles.dataFname = char(curFname);
 
 
 
-
-
+set(handles.load_pre,'Enable','off');
 set(handles.load_im,'Enable','on');
+set(handles.saveExp,'Enable','off');
 
 % Update handles structure
 guidata(hObject, handles);
@@ -634,11 +639,30 @@ guidata(hObject, handles);
 
 
 
+% --------------------------------------------------------------------
+function load_pre_Callback(hObject, eventdata, handles)
+% hObject    handle to load_pre (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
 
 
+[fileName,saveLOC,~] = uigetfile();
+load(fileName);
 
 
+% Save empty mat file to that location
 
+
+handles.SaveLoc = saveLOC;
+handles.dataFname = char(fileName);
+
+% ADD ADDitional Handles %%%%%%%% Need to ADD
+
+% [handles] = next_file(handles);
+
+set(handles.load_im,'Enable','on');
+set(handles.load_pre,'Enable','off');
+set(handles.saveExp,'Enable','off');
 
 
 
@@ -747,5 +771,6 @@ function ele5_CreateFcn(hObject, eventdata, handles)
 if ispc && isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgroundColor'))
     set(hObject,'BackgroundColor','white');
 end
+
 
 
