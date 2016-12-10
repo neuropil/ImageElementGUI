@@ -64,8 +64,8 @@ handles.countLoc = 1;
 
 handles.zState = 'Zo';
 
-handles.xyCounts = nan(10000,2);
-handles.xyBoxLocs = nan(10000,1);
+handles.xyCounts = zeros(10000,2);
+handles.xyBoxLocs = zeros(10000,1);
 
 % Turn buttons off to START
 set(handles.startCount,'Enable','off')
@@ -203,9 +203,8 @@ for ui = 1:numel(uniqueBls)
 end
 
 
-values = [sum(~isnan(handles.xyCounts(:,1))) , uniTots];
+[sum(~isnan(handles.xyCounts(:,1))) , uniTots]
 
-outTable = array2table(values,'VariableNames',varNames);
 
 cd(saveLOC);
 save(char(curFname),'dataOUTn');
