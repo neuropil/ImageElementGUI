@@ -22,7 +22,7 @@ function varargout = ElementID_GUI_2(varargin)
 
 % Edit the above text to modify the response to help ElementID_GUI_2
 
-% Last Modified by GUIDE v2.5 09-Dec-2016 20:57:04
+% Last Modified by GUIDE v2.5 11-Dec-2016 19:45:30
 
 % Begin initialization code - DO NOT EDIT
 gui_Singleton = 1;
@@ -161,6 +161,8 @@ handles.zState = 'Zi';
 
 % TURN ON Ability to COUNT
 set(handles.startCount,'Enable','on')
+set(handles.zIn,'Enable','on')
+set(handles.zOut,'Enable','on')
 
 % Update handles structure
 guidata(hObject, handles);
@@ -189,15 +191,15 @@ curFname = 'O' + replace(string(datestr(now)),{'-',':',' '},'') + '_eleData.mat'
 varNames = cell(1,handles.countLoc - 1);
 
 for vi = 1:length(varNames)
-    varNames{1,vi} = ['G-',num2str(vi)];
+    varNames{1,vi} = ['G_',num2str(vi)];
 end
 varNames = ['Total' , varNames];
 
-tmpGroups = handles.xyCounts(~isnan(handles.xyCounts));
+tmpGroups = handles.xyBoxLocs(~isnan(handles.xyBoxLocs));
 uniqueBls = unique(tmpGroups);
 uniTots = zeros(1,numel(uniqueBls));
 for ui = 1:numel(uniqueBls)
-   
+    
     uniTots(1,ui) = sum(ismember(tmpGroups,uniqueBls(ui)));
     
 end
@@ -205,45 +207,31 @@ end
 
 values = [sum(~isnan(handles.xyCounts(:,1))) , uniTots];
 
-outTable = array2table(values,'VariableNames',varNames);
+outTable = array2table(values);
+outTable.Properties.VariableNames = varNames;
+
+curFnameCSV = 'O' + replace(string(datestr(now)),{'-',':',' '},'') + '_eleData.csv';
 
 cd(saveLOC);
-save(char(curFname),'dataOUTn');
+save(char(curFname),'outTable');
+writetable(outTable,['O' , char(replace(string(datestr(now)),{'-',':',' '},'')) , '_eleData.csv'])
 
 handles.SaveLoc = saveLOC;
 handles.dataFname = char(curFname);
 
 
 
-set(handles.load_pre,'Enable','off');
-set(handles.load_im,'Enable','on');
-set(handles.saveExp,'Enable','off');
+set(handles.load_image,'Enable','on');
+set(handles.startCount,'Enable','off')
+set(handles.zIn,'Enable','off')
+set(handles.zOut,'Enable','off')
+set(handles.saveExp,'Enable','off')
+set(handles.act_Opts,'Enable','off')
+
 
 % Update handles structure
 guidata(hObject, handles);
 
-
-
-
-% --------------------------------------------------------------------
-function load_pre_Callback(hObject, eventdata, handles)
-% hObject    handle to load_pre (see GCBO)
-% eventdata  reserved - to be defined in a future version of MATLAB
-% handles    structure with handles and user data (see GUIDATA)
-
-
-[fileName,saveLOC,~] = uigetfile();
-load(fileName);
-
-handles.SaveLoc = saveLOC;
-handles.dataFname = char(fileName);
-
-set(handles.load_im,'Enable','on');
-set(handles.load_pre,'Enable','off');
-set(handles.saveExp,'Enable','off');
-
-% Update handles structure
-guidata(hObject, handles);
 
 
 
@@ -263,6 +251,42 @@ keepGoing = true;
 
 startMat = handles.tempMask{handles.countLoc - 1,1};
 ind = find(startMat);
+
+
+rowVals = nan(1,1000000);
+for si = 1:size(startMat,1)
+    ri = startMat(si,:);
+    if sum(ri) == 0
+        continue
+    else
+        rowVals(si) = si;
+    end
+end
+
+rowVals = rowVals(~isnan(rowVals));
+
+rotTot = (rowVals(end) - rowVals(1)) + 1;
+
+colVals = nan(1,1000000);
+for si = 1:size(startMat,2)
+    ci = startMat(:,si);
+    if sum(ci) == 0
+        continue
+    else
+        colVals(si) = si;
+    end
+end
+
+colVals = colVals(~isnan(colVals));
+
+colTot = (colVals(end) - colVals(1)) + 1;
+
+
+
+blankCanvas3 = false(rotTot ,colTot);
+
+
+
 [y1, x1] = ind2sub(size(startMat), ind(1));
 [y2, x2] = ind2sub(size(startMat), ind(end));
 tempCanvas = startMat(y1:y2, x1:x2);
@@ -285,6 +309,7 @@ while keepGoing
     
     blankCanvas(round(neurPtsX),round(neurPtsY)) = true;
     blankCanvas2(round(neurPtsX),round(neurPtsY)) = true;
+    blankCanvas3(round(neurPtsX),round(neurPtsY)) = true;
     
     hold on
     
@@ -303,10 +328,12 @@ end
 tempryMask = handles.tempMask{handles.countLoc - 1,1};
 tempryMask2 = tempryMask;
 
-if sum(sum(tempryMask2)) ~= numel(blankCanvas)
-    tempryMask2(tempryMask2) = blankCanvas2;
-else
+if sum(sum(tempryMask2)) == numel(blankCanvas)
     tempryMask2(tempryMask2) = blankCanvas;
+elseif sum(sum(tempryMask2)) == numel(blankCanvas2)
+    tempryMask2(tempryMask2) = blankCanvas2;
+elseif sum(sum(tempryMask2)) == numel(blankCanvas3)
+    tempryMask2(tempryMask2) = blankCanvas3;
 end
 
 handles.TotalAllMask(tempryMask == 1) = tempryMask2(tempryMask == 1);
@@ -369,5 +396,34 @@ if strcmp(handles.zState,'Zi')
     
     hold off
 end
+
+guidata(hObject, handles);
+
+
+% --------------------------------------------------------------------
+function load_image_Callback(hObject, eventdata, handles)
+% hObject    handle to load_image (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+
+
+set(handles.updateT,'String','Working...');
+set(handles.updateT,'ForegroundColor','b');
+drawnow;
+[imageName , dataLOC] = uigetfile('*.tiff','Select this FILE: 141221_3_aavtoRN_terms...');
+cd(dataLOC)
+testIm = imread(imageName);
+
+set(handles.updateT,'String','Image file loaded...');
+set(handles.updateT,'ForegroundColor','r');
+
+axes(handles.imAGE);
+
+handles.currentIM = testIm;
+
+imshow(handles.currentIM)
+
+set(handles.load_image,'Enable','off');
+set(handles.act_Opts,'Enable','on')
 
 guidata(hObject, handles);
